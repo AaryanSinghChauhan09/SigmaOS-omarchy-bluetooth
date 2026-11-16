@@ -1,0 +1,10 @@
+[package]
+name = "SigmaOS-omarchy-bluetooth"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "SigmaOS omarchy-bluetooth component"
+
+[lib]
+name = "omarchy_bluetooth"
+path = "src/lib.rs"
