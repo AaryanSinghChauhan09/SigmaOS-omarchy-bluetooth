@@ -3,7 +3,7 @@ name = "SigmaOS-omarchy-bluetooth"
 tier = 2
 stability = "beta"
 language = "rust"
-description = "Bluetooth manager for SigmaOS inspired by Omarchy Linux"
+description = "Bluetooth device manager"
 upstream = []
 
 [contract]
