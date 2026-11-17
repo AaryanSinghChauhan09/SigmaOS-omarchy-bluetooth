@@ -12,5 +12,5 @@ depends_on = ["SigmaOS-system"]
 
 [maturity]
 status = "Implemented"
-test_evidence = "cargo test --offline: 8 lib + 1 integration pass; bluetoothctl-style manager (adapter power/discoverable, device scan, pair/bond/connect/disconnect/trust state machine) + working CLI"
+test_evidence = "cargo test --offline: 8 lib + 1 integration pass; bluetoothctl-style manager (adapter power, pair/bond/connect/trust state machine) with JSON persistence of bonded devices + working CLI"
 next_milestone = "BlueZ/D-Bus backend binding for live adapters"

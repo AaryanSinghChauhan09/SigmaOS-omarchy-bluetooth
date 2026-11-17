@@ -8,7 +8,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DeviceKind {
     Classic,
     Le,
@@ -25,7 +25,7 @@ impl fmt::Display for DeviceKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DeviceState {
     Discovered,
     Paired,
@@ -46,7 +46,7 @@ impl DeviceState {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct BluetoothDevice {
     pub mac: String,
     pub name: String,
@@ -99,7 +99,7 @@ impl fmt::Display for BluetoothError {
 
 impl std::error::Error for BluetoothError {}
 
-#[derive(Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct Adapter {
     pub name: String,
     pub address: String,
@@ -230,6 +230,36 @@ impl OmarchyBluetooth {
     }
 
     // ---- reporting ----
+    /// Persist adapter + bonded/paired devices to JSON.
+    pub fn save_to(&self, path: &std::path::Path) -> Result<(), String> {
+        #[derive(serde::Serialize, serde::Deserialize)]
+        struct Disk { adapter: Adapter, devices: Vec<BluetoothDevice> }
+        // persist only durable devices (paired/bonded/connected/trusted); transient discoveries are re-scanned
+        let devices: Vec<BluetoothDevice> = self.devices.values()
+            .filter(|d| d.state != DeviceState::Discovered)
+            .cloned().collect();
+        let d = Disk { adapter: self.adapter.clone(), devices };
+        let j = serde_json::to_string_pretty(&d).map_err(|e| e.to_string())?;
+        if let Some(p) = path.parent() { std::fs::create_dir_all(p).map_err(|e| e.to_string())?; }
+        std::fs::write(path, j).map_err(|e| e.to_string())
+    }
+
+    pub fn load_from(path: &std::path::Path) -> Result<Self, String> {
+        #[derive(serde::Serialize, serde::Deserialize)]
+        struct Disk { adapter: Adapter, devices: Vec<BluetoothDevice> }
+        let txt = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+        let d: Disk = serde_json::from_str(&txt).map_err(|e| e.to_string())?;
+        let mut devices = BTreeMap::new();
+        for dev in d.devices { devices.insert(dev.mac.clone(), dev); }
+        Ok(Self { adapter: d.adapter, devices })
+    }
+
+    pub fn state_path() -> std::path::PathBuf {
+        if let Ok(p) = std::env::var("SIGMAOS_BT_FILE") { return std::path::PathBuf::from(p); }
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
+        std::path::PathBuf::from(home).join(".local/share/sigmaos/bluetooth.json")
+    }
+
     pub fn status_line(&self) -> String {
         let a = &self.adapter;
         format!("Adapter {} ({}) {} discoverable={}", a.name, a.address,

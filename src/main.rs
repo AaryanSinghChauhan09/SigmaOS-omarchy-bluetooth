@@ -12,14 +12,6 @@
 use omarchy_bluetooth::{DeviceKind, OmarchyBluetooth};
 use std::process::exit;
 
-fn seed() -> OmarchyBluetooth {
-    let mut m = OmarchyBluetooth::new();
-    let _ = m.discover("AA:BB:CC:DD:EE:01", "Pixel Buds Pro", DeviceKind::Le, -52);
-    let _ = m.discover("11:22:33:44:55:66", "MX Keys", DeviceKind::Classic, -68);
-    let _ = m.discover("22:33:44:55:66:77", "Sony WH-1000XM5", DeviceKind::Dual, -60);
-    m
-}
-
 fn usage() -> ! {
     eprintln!("usage: omarchy-bluetooth <status|power|discoverable|scan|devices|info|pair|bond|connect|disconnect|trust|untrust|remove> [args]");
     exit(2);
@@ -28,7 +20,19 @@ fn usage() -> ! {
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.is_empty() { usage(); }
-    let mut bt = seed();
+    let state = OmarchyBluetooth::state_path();
+    // load persisted paired/bonded devices, then merge fresh demo discoveries
+    // (like BlueZ: paired devices persist, discoveries are transient)
+    let mut bt = OmarchyBluetooth::load_from(&state).unwrap_or_else(|_| OmarchyBluetooth::new());
+    for (mac, name, kind, rssi) in [
+        ("AA:BB:CC:DD:EE:01", "Pixel Buds Pro", DeviceKind::Le, -52),
+        ("11:22:33:44:55:66", "MX Keys", DeviceKind::Classic, -68),
+        ("22:33:44:55:66:77", "Sony WH-1000XM5", DeviceKind::Dual, -60),
+    ] {
+        if bt.device(mac).is_none() {
+            let _ = bt.discover(mac, name, kind, rssi);
+        }
+    }
     let cmd = args[0].as_str();
     let rest = &args[1..];
     let mac = |i: usize| -> &str { rest.get(i).map(|s| s.as_str()).unwrap_or_else(|| usage()) };
@@ -98,8 +102,10 @@ fn main() {
         _ => usage(),
     };
 
-    if let Err(e) = result {
-        eprintln!("omarchy-bluetooth: {e}");
-        exit(1);
+    match result {
+        Ok(()) => {
+            if let Err(e) = bt.save_to(&state) { eprintln!("omarchy-bluetooth: warn: save: {e}"); }
+        }
+        Err(e) => { eprintln!("omarchy-bluetooth: {e}"); exit(1); }
     }
 }
